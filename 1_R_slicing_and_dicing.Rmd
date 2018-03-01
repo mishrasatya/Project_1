@@ -1,0 +1,373 @@
+---
+title: "Project_Spark_Fund"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**Scope of work**
+
+Spark Funds is an asset management company. Spark Funds wants to make investments in a few companies. The CEO of Spark Funds wants to understand the global trends in investments so that she can take the investment decisions effectively.
+
+Spark Funds has two constraints for investments:
+* It wants to invest between 5 to 15 million USD per round of investment.
+* It wants to invest only in English-speaking countries because of the ease of communication with the companies it would invest in.
+
+**Goals of data analysis**
+
+* Investment type analysis: Understanding investments in venture, seed/angel, private equity categories, etc. so Spark Funds can decide which type is best suited for its strategy.
+* Country analysis: Understanding which countries have had the most investments in the past. These will be Spark Funds' favourites as well.
+* Sector analysis: Understanding the distribution of investments across the eight main sectors. (Note that we are interested in the eight main sectors provided in the mapping file. The two files - companies and rounds2 - have numerous sub-sector names; hence, you will need to map each sub-sector to its main sector.)
+
+**Data Dictionary**
+
+**companies: A table with basic data of companies**
+
+* Permalink - Unique ID of company
+* name - Company name
+* homepage_url - Website URL
+* category_list - Category/categories to which a company belongs
+* status - Operational status
+* country_code - Country Code 
+* state_code - State
+
+**rounds2: The most important parameters are explained below**
+
+* company_permalink - Unique ID of company
+* funding_round_permalink - Unique ID of funding round
+* funding_round_type - Type of funding (venture, angel, private equity etc)
+* funding_round_code - Round of venture funding (round A, B etc.)
+* funded_at - Date of funding
+* raised_amount_usd - Money raised in funding (USD)
+
+**Questions**
+
+* How many unique companies are present in rounds2?
+* How many unique companies are present in companies?
+* Merge the two data frames so that all variables (columns) in the companies frame are added to the rounds2 data frame. Name the merged frame master_frame. How many observations are present in master_frame?
+* How many NA values are present in the column raised_amount_usd?
+* What do you replace NA values of raised_amount_usd with? Enter a numeric value.
+* Average funding amount of venture type?                             
+* Average funding amount of angel type?
+* Average funding amount of seed type?
+* Average funding amount of private equity type?
+* Considering that Spark Funds wants to invest between 5 to 15 million USD per investment round, which investment type is the most suitable for it?
+* Total number of investments (count)?
+* Total amount of investment (USD)?
+* Top sector (based on count of investments)?
+* Second-best sector (based on count of investments)?
+* Third-best sector (based on count of investments)?
+* Top two companies to which investements were rendered for the top three countries?
+
+
+Setting up the working directory and loading the required files
+```{r}
+companies <- read.delim("companies.txt",header = TRUE, sep = "\t",stringsAsFactors = FALSE)
+round2 <- read.csv("rounds2.csv",header = TRUE, sep = ",", stringsAsFactors = FALSE)
+```
+
+Checking the structure of companies and round2 dataframes.
+```{r}
+str(companies)
+str(round2)
+```
+
+Loading the required library
+```{r warning=FALSE , message=FALSE}
+library(dplyr)
+library(tidyr)
+```
+
+As company_permalink column in round2 dataframe has mixed cases for the same permalink, hence converting conpamy_permalink column to uppercase, storing it in upper_permalink and then getting the unique values.
+
+We will use the mutate function from dplyr package to create the upper_permalink variable for round2 dataframe.
+```{r}
+round2_mutate <- mutate(round2, upper_permalink = toupper(round2$company_permalink))
+dim(round2_mutate)
+```
+
+How many unique companies are present in rounds2?
+
+Using length function to find the unique permalink.
+```{r}
+unique_round2 <- (length(unique(round2_mutate$upper_permalink)))
+unique_round2
+```
+
+How many unique companies are present in companies?
+
+Using permalink from companies dataframe to find unique companies
+```{r}
+unique_companies <- (length(unique(companies$permalink)))
+unique_companies
+```
+
+Before merging companies and round2 dataframe to make master dataframe we have converted company_permalink and permalink to all caps so that the merging can be done properly
+```{r}
+companies[,1] = toupper(companies[,1])
+round2[,1] = toupper(round2[,1])
+```
+
+Merge the two data frames so that all variables (columns) in the companies frame are added to the rounds2 data frame. Name the merged frame master_frame. How many observations are present in master_frame?
+
+Creating the master dataframe.
+We will be using the left join function from dplyr package to do the merging
+```{r}
+master_frame <- left_join(round2,companies,by = c("company_permalink" = "permalink"))
+dim(master_frame)
+```
+
+How many NA values are present in the column raised_amount_usd?
+
+Finding NA in raised amount usd column of master_frame
+```{r}
+number_of_na <- sum(is.na(master_frame$raised_amount_usd))
+number_of_na
+```
+
+What do you replace NA values of raised_amount_usd with? Enter a numeric value.
+
+Replacing NA with zero
+
+**Please Note:- It is not advisable to replace NA with zero, it is always better to keep the NA's as is.**
+```{r}
+master_frame$raised_amount_usd[is.na(master_frame$raised_amount_usd)] <- 0
+```
+
+Finding the average of funding type.
+
+Average funding amount of venture type?                             
+Average funding amount of angel type?
+Average funding amount of seed type?
+Average funding amount of private equity type?
+
+This will tell us about the average funding amount for venture, angel, seed & private equity
+
+We will be using the group_by and summarise functions to find the average of funding types
+```{r}
+average_of_funding_types <- summarise(group_by(master_frame, funding_round_type), mean(raised_amount_usd,na.rm = TRUE))
+colnames(average_of_funding_types)[2] <- "Average Amount"
+average_of_funding_types
+```
+
+Considering that Spark Funds wants to invest between 5 to 15 million USD per investment round, which investment type is the most suitable for it?
+
+Converting to millions to find what funding type falls within 5 to 15 million. This conversion will easily show what type falls into the 5 to 15 million bucket.
+```{r}
+convert_to_millions <- average_of_funding_types$`Average Amount`/1000000
+average_of_funding_types_in_millions <- cbind(average_of_funding_types, convert_to_millions)
+average_of_funding_types_in_millions
+```
+
+Looking at the above table we can see that venture type is the one where spark should invest.Hence subsetting master_frame to get line items related to only venture fund type
+
+```{r}
+venture_fund_type <- subset(master_frame, funding_round_type == "venture")
+```
+
+Grouping and summarizing the venture fund type dataframe on a counrty code level by the basis of fund raised
+```{r}
+fundraised_by_countrycode <- summarise(group_by(venture_fund_type, country_code), sum(raised_amount_usd,na.rm = TRUE))
+colnames(fundraised_by_countrycode)[2] <- "Total Amount"
+fundraised_by_countrycode
+```
+
+After we have summarized venture fund type on a country_code level its time to get the top 9 by fund raised, this is just the raw table
+
+We will be using the top_n function from dplyr package for this insight.
+```{r}
+top_9_raw <- top_n(fundraised_by_countrycode,9)
+```
+
+Converting Total Amount to millions and billions for better readability
+```{r}
+convertmillion <- top_9_raw$`Total Amount`/1000000
+convertbillion <- top_9_raw$`Total Amount`/1000000000
+```
+
+Here we are attaching convertmillion & convertbillion to top_9_raw to form a new dataframe called top_9
+```{r}
+top_9 <- cbind(top_9_raw,convertmillion,convertbillion)
+arrange(top_9,desc(convertbillion))
+```
+
+Now we will load the sector mapping file to R console
+```{r}
+setwd("C:/Users/mishrsat/Desktop/Automation/codes/Project 1 Spark Fund")
+sector_mapping_raw <- read.csv("mapping.csv",header = TRUE, sep = ",", stringsAsFactors = FALSE)
+```
+
+Using the gather function we are converting the wide format data to long format data
+```{r}
+sector_mapping_gather <- gather(sector_mapping_raw, Catagory, Catagory_value, Automotive...Sports:Social..Finance..Analytics..Advertising)
+```
+
+Removing all the row that has a value of 0 in the newly created catagory_value column as row that have 1 is what we require
+```{r}
+sector_mapping_gather <- sector_mapping_gather[!(sector_mapping_gather$Catagory_value == 0),]
+```
+
+Removing the third column (Catagory_value) from the dataframe as it dosen't add any value any more
+```{r}
+sector_mapping_gather <- sector_mapping_gather[, -3]
+```
+
+Using the gsub function, here we are replacing the characters which have typo errors in the mapping master. There are a total of four character strings that were replaced
+```{r}
+sector_mapping_gather$category_list <- gsub("0","na",sector_mapping_gather$category_list)
+sector_mapping_gather$category_list <- gsub("nanotechnology","Nanotechnology",sector_mapping_gather$category_list)
+sector_mapping_gather$category_list <- gsub("natural","Natural",sector_mapping_gather$category_list)
+sector_mapping_gather$category_list <- gsub("navigation","Navigation",sector_mapping_gather$category_list)
+```
+
+Mutating the column category_list to remove multipe category in each row. This is done as per the business rule set up by spark fund
+```{r}
+venture_fund_type <- mutate(venture_fund_type,category_list=sapply(strsplit(venture_fund_type$category_list, split='|', fixed=TRUE),function(x) (x[1])))
+```
+
+Joining venture_fund_type and sector_mapping_gather to create the final cleansed dataframe
+
+Using the left_join function from dplyr package to make the merge
+```{r}
+Venture_fund_final <- left_join(venture_fund_type,sector_mapping_gather,by = c("category_list" = "category_list"))
+```
+
+* Using the venture fund final dataframe we are creating a new vector raised_usd_in_millions to store values in millions
+* Then we are combining the vector to venture fund final to form combined raw dataframe
+* After that we are taking the rows that fall in the bucket of 5 to 15 million and creating combined_final
+```{r}
+raised_usd_in_millions <- Venture_fund_final$raised_amount_usd/1000000
+combined_raw <- cbind(Venture_fund_final,raised_usd_in_millions)
+combined_final <- combined_raw[(combined_raw$raised_usd_in_millions >= 5.0) & (combined_raw$raised_usd_in_millions <= 15.0) & !is.na(combined_raw$raised_usd_in_millions), ]
+```
+
+Now we are subsetting and creating three data frames , one each for the top three countries
+```{r}
+united_states <- subset(combined_final, country_code == "USA")
+great_britain <- subset(combined_final, country_code == "GBR")
+india <- subset(combined_final,country_code == "IND")
+```
+
+Total number of investments (count)?
+
+Using the tally function we will first get the count and then sort it
+```{r}
+total_countofinvestment <- tally(group_by(combined_final,country_code), sort = TRUE)
+head(total_countofinvestment,10)
+```
+
+Total amount of investment (USD)? 
+
+Using the summarise and group_by function we are getting the amount on a counrty code level
+```{r}
+total_amtofinvestment <- summarise(group_by(combined_final, country_code),sum(raised_amount_usd))
+```
+
+Top sector (based on count of investments)?
+Second-best sector (based on count of investments)?
+Third-best sector (based on count of investments)?
+
+Finding the top 3 sectors and count of respective sector. We will be using the tally function to get the count and then sort it
+```{r}
+sector_name_count_USA <- tally(group_by(united_states,Catagory), sort = TRUE)
+sector_name_count_GRB <- tally(group_by(great_britain,Catagory), sort = TRUE)
+sector_name_count_IND <- tally(group_by(india,Catagory), sort = TRUE)
+sector_name_count_USA
+sector_name_count_GRB
+sector_name_count_IND
+```
+
+**Finding the top two companies to which investements were rendered for USA, GBR & IND**
+
+* Here for the top company in USA we first summarise and group_by Catagory & name on united_states dataframe
+* From there we subset the dataframe on others catagory
+* Then we again summarise and group_by on name from the subsetted dataframe to get the total amount given to each company
+* Using the top_n function we find the top most company
+```{r}
+first_high_invest_USA <- summarise(group_by(united_states, Catagory,name), sum(raised_amount_usd))
+USA_others <- subset(first_high_invest_USA,Catagory == "Others")
+USA_others_summary <- summarise(group_by(USA_others,name), sum(`sum(raised_amount_usd)`))
+first_high_invest_USA_final <- top_n(USA_others_summary,1)
+first_high_invest_USA_final
+```
+
+* Here for the top company in USA we first summarise and group_by Catagory & name on united_states dataframe
+* From there we subset the dataframe on Social_Finance_Analytics_Advertising catagory
+* Then we again summarise and group_by on name from the subsetted dataframe to get the total amount given to each company
+* Using the top_n function we find the top most company
+```{r}
+second_high_invest_USA <- summarise(group_by(united_states, Catagory,name), sum(raised_amount_usd))
+USA_SFAA <- subset(second_high_invest_USA,Catagory == "Social..Finance..Analytics..Advertising")
+USA_SFAA_summary <- summarise(group_by(USA_SFAA,name), sum(`sum(raised_amount_usd)`))
+second_high_invest_USA_final <- top_n(USA_SFAA_summary,1)
+second_high_invest_USA_final
+```
+
+* Here for the top company in GBR we first summarise and group_by Catagory & name on great_britain dataframe
+* From there we subset the dataframe on others catagory
+* Then we again summarise and group_by on name from the subsetted dataframe to get the total amount given to each company
+* Using the top_n function we find the top most company
+```{r}
+first_high_invest_GRB <- summarise(group_by(great_britain, Catagory,name), sum(raised_amount_usd))
+GRB_others <- subset(first_high_invest_GRB,Catagory == "Others")
+GRB_others_summary <- summarise(group_by(GRB_others,name), sum(`sum(raised_amount_usd)`))
+first_high_invest_GRB_final <- top_n(GRB_others_summary,1)
+first_high_invest_GRB_final
+```
+
+* Here for the top company in GBR we first summarise and group_by Catagory & name on great_britain dataframe
+* From there we subset the dataframe on Social_Finance_Analytics_Advertising catagory
+* Then we again summarise and group_by on name from the subsetted dataframe to get the total amount given to each company
+* Using the top_n function we find the top most company
+```{r}
+second_high_invest_GRB <- summarise(group_by(great_britain, Catagory,name), sum(raised_amount_usd))
+GRB_SFAA <- subset(second_high_invest_GRB,Catagory == "Social..Finance..Analytics..Advertising")
+GRB_SFAA_summary <- summarise(group_by(GRB_SFAA,name), sum(`sum(raised_amount_usd)`))
+second_high_invest_GRB_final <- top_n(GRB_SFAA_summary,1)
+second_high_invest_GRB_final
+```
+
+* Here for the top company in IND we first summarise and group_by Catagory & name on india dataframe
+* From there we subset the dataframe on others catagory
+* Then we again summarise and group_by on name from the subsetted dataframe to get the total amount given to each company
+* Using the top_n function we find the top most company
+```{r}
+first_high_invest_IND <- summarise(group_by(india, Catagory,name), sum(raised_amount_usd))
+IND_others <- subset(first_high_invest_IND,Catagory == "Others")
+IND_others_summary <- summarise(group_by(IND_others,name), sum(`sum(raised_amount_usd)`))
+first_high_invest_IND_final <- top_n(IND_others_summary,1)
+first_high_invest_IND_final
+```
+
+* Here for the top company in IND we first summarise and group_by Catagory & name on india dataframe
+* From there we subset the dataframe on Social_Finance_Analytics_Advertising catagory
+* Then we again summarise and group_by on name from the subsetted dataframe to get the total amount given to each company
+* Using the top_n function we find the top most company
+```{r}
+second_high_invest_IND <- summarise(group_by(india, Catagory,name), sum(raised_amount_usd))
+IND_SFAA <- subset(second_high_invest_IND,Catagory == "Social..Finance..Analytics..Advertising")
+IND_SFAA_summary <- summarise(group_by(IND_SFAA,name), sum(`sum(raised_amount_usd)`))
+second_high_invest_IND_final <- top_n(IND_SFAA_summary,1)
+second_high_invest_IND_final
+```
+
+**THIS PROJECT MAINLY DEALT WITH SLICING AND DICING OF DATA USING R LANGUAGE**
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
